@@ -1,22 +1,37 @@
-class ProviderExampleGroup < Spec::Example::ExampleGroup
+require 'etc'
 
-  # Allow access to the current resource
-  attr_reader :resource
+module ProviderMacros
 
-  # Build up the values for the resource in this scope
-  before :each do
-    resource_hash = example_group_hierarchy.inject({}) do |memo, klass|
-      memo.merge(klass.options[:resource] || {})
+  def self.extended(base)
+    base.class_eval do
+
+      # before :each do
+      #   resource_hash = {}
+
+      #   current_klass = self.class
+
+      #   until current_klass == RSpec::Core::ExampleGroup
+      #     metadata = current_klass.metadata
+      #     resource_hash.merge!(metadata[:resource]) if metadata[:resource].kind_of?(Hash)
+      #     current_klass = current_klass.superclass
+      #   end
+
+      #   full_hash = resource_hash.merge(:provider => described_class.name)
+
+      #   @resource = described_class.resource_type.new(full_hash)
+      # end
+
+      subject { described_class.new(@resource) }
+
+      attr_accessor :resource
+
+      def provider
+        subject
+      end
+
     end
-    full_hash = resource_hash.merge(:provider => described_class.name)
-    @resource = described_class.resource_type.new(full_hash)
   end
 
-  # Build the provider
-  subject { described_class.new(@resource) }
-
-  # Allow access to it via +provider+
-  alias :provider :subject
 
   # Generate a context for a provider operating on a resource with:
   #
@@ -34,13 +49,13 @@ class ProviderExampleGroup < Spec::Example::ExampleGroup
   #
   # Note: Choose one or the other (mixing will create two separate contexts)
   #
-  def self.resource_with(*params, &block)
+  def resource_with(*params, &block)
     params_with_values = params.last.is_a?(Hash) ? params.pop : {}
     build_value_context(params_with_values, &block)
     build_existence_context(*params, &block)
   end
 
-  def self.build_existence_context(*params, &block) #:nodoc:
+  def build_existence_context(*params, &block) #:nodoc:
     unless params.empty?
       text = params.join(', ')
       placeholders = params.inject({}) { |memo, key| memo.merge(key => 'an-unimportant-value') }
@@ -48,10 +63,34 @@ class ProviderExampleGroup < Spec::Example::ExampleGroup
     end
   end
 
-  def self.build_value_context(params = {}, &block) #:nodoc:
+  def build_value_context(params = {}, &block) #:nodoc:
     unless params.empty?
       text = params.map { |k, v| "#{k} => #{v.inspect}" }.join(' and with ')
       context("and with #{text}", {:resource => params}, &block)
+    end
+  end
+
+  def actual_group(group)
+    stat = mock('file:stat')
+
+    gid = gid_by_group(group)
+
+    stat.stubs(:gid).returns(gid)
+
+    File.stubs(:stat).with(@superclass_metadata[:resource][:path]).returns(stat)
+
+    yield
+  end
+
+  def gid_by_group(group)
+    groupdb = []
+
+    while entry = Etc.passwd
+      groupdb << entry
+    end
+
+    if found = groupdb.detect { |el| el.name == group }
+      found.gid
     end
   end
 
@@ -65,13 +104,11 @@ class ProviderExampleGroup < Spec::Example::ExampleGroup
   #     # ...
   #   end
   #
-  def self.resource_without(field, &block)
+  def resource_without(field, &block)
     context("and without a #{field}", &block)
   end
 
 end
-
-Spec::Example::ExampleGroupFactory.register(:provider, ProviderExampleGroup)
 
 # Outside wrapper to lookup a provider and start the spec using ProviderExampleGroup
 def describe_provider(type_name, provider_name, options = {}, &block)

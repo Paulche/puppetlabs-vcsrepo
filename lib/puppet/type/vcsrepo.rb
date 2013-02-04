@@ -1,4 +1,5 @@
 require 'pathname'
+require 'pry'
 
 Puppet::Type.newtype(:vcsrepo) do
   desc "A local version control repository"
@@ -31,6 +32,24 @@ Puppet::Type.newtype(:vcsrepo) do
   feature :multiple_remotes,
           "The repository tracks multiple remote repositories"
 
+  autorequire(:file) do
+    paths = []
+
+    unless self[:ensure] == 'absent'
+      path = Pathname.new(self[:path])
+
+      if !path.root?
+        enum = path.parent.enum_for(:ascend)
+
+        if found = enum.find { |p| catalog.resource(:file, p.to_s) }
+          paths << found.to_s
+        end
+      end
+    end
+
+    paths
+  end
+
   ensurable do
     attr_accessor :latest
 
@@ -38,16 +57,16 @@ Puppet::Type.newtype(:vcsrepo) do
       @should ||= []
 
       case should
-        when :present
-          return true unless [:absent, :purged, :held].include?(is)
-        when :latest
-          if is == :latest
-            return true
-          else
-            return false
-          end
-		when :bare
-		  return is == :bare
+      when :present
+        return true unless [:absent, :purged, :held].include?(is)
+      when :latest
+        if is == :latest
+          return true
+        else
+          return false
+        end
+      when :bare
+        return is == :bare
       end
     end
 
@@ -57,7 +76,11 @@ Puppet::Type.newtype(:vcsrepo) do
     end
 
     newvalue :bare, :required_features => [:bare_repositories] do
-	  if !provider.exists?
+      binding.pry
+
+      if provider.exists?
+        provider.update_owner_and_excludes
+      else
         provider.create
       end
     end

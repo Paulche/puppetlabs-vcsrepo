@@ -2,6 +2,7 @@ require 'spec_helper'
 
 describe_provider :vcsrepo, :git, :resource => {:path => '/tmp/vcsrepo'} do
 
+
   context 'creating' do
     resource_with :source do
       resource_with :ensure => :present do
@@ -196,10 +197,12 @@ describe_provider :vcsrepo, :git, :resource => {:path => '/tmp/vcsrepo'} do
   end
 
   context "checking if revision" do
+
     before do
       expects_chdir
       provider.expects(:git).with('branch', '-a').returns(fixture(:git_branch_a))
     end
+
     context "is a local branch" do
       context "when it's listed in 'git branch -a'", :resource => {:revision => 'feature/foo'} do
         it "should return true" do
@@ -226,4 +229,37 @@ describe_provider :vcsrepo, :git, :resource => {:path => '/tmp/vcsrepo'} do
     end
   end
 
+  context 'updating owder or group property', :resource => {:ensure => :bare} do
+
+    after(:each) do
+      provider.create
+    end
+
+    context 'owner property' do
+      resource_with :owner => 'new-owner' do
+        it 'should update permitions of target recursively if there is difference' do
+
+        end
+      end
+    end
+
+    context 'group property', :now => true do
+      resource_with :group => 'new-group' do
+
+        actual_group('new-group') do
+          it 'should not update permitions' do
+            expects_not_update_group
+          end
+        end
+
+        actual_group('former-group') do
+          it 'should update permition recursively' do
+            expects_update_group
+          end
+        end
+
+      end
+    end
+
+  end
 end

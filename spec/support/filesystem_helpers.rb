@@ -15,4 +15,12 @@ module FilesystemHelpers
   def expects_directory?(returns = true, path = resource.value(:path))
     File.expects(:directory?).with(path).returns(returns)
   end
+
+  def expects_not_update_group(path = resource.value(:path), group = resource.value(:group))
+    FileUtils.expects(:chown_R).never
+  end
+
+  def expects_update_group(path = resource.value(:path), group = resource.value(:group))
+    FileUtils.expects(:chown_R).with(nil,group,path)
+  end
 end
