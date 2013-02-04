@@ -10,6 +10,7 @@ class Puppet::Provider::Vcsrepo < Puppet::Provider
   def set_ownership
     owner = @resource.value(:owner) || nil
     group = @resource.value(:group) || nil
+
     FileUtils.chown_R(owner, group, @resource.value(:path))
   end
 

@@ -5,22 +5,6 @@ module ProviderMacros
   def self.extended(base)
     base.class_eval do
 
-      # before :each do
-      #   resource_hash = {}
-
-      #   current_klass = self.class
-
-      #   until current_klass == RSpec::Core::ExampleGroup
-      #     metadata = current_klass.metadata
-      #     resource_hash.merge!(metadata[:resource]) if metadata[:resource].kind_of?(Hash)
-      #     current_klass = current_klass.superclass
-      #   end
-
-      #   full_hash = resource_hash.merge(:provider => described_class.name)
-
-      #   @resource = described_class.resource_type.new(full_hash)
-      # end
-
       subject { described_class.new(@resource) }
 
       attr_accessor :resource

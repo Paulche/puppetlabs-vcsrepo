@@ -101,6 +101,15 @@ Puppet::Type.type(:vcsrepo).provide(:git, :parent => Puppet::Provider::Vcsrepo) 
     end
   end
 
+  def update_owner_and_excludes
+    if @resource.value(:owner) or @resource.value(:group)
+      set_ownership
+    end
+    if @resource.value(:excludes)
+      set_excludes
+    end
+  end
+
   private
 
   def bare_git_config_exists?
@@ -266,14 +275,6 @@ Puppet::Type.type(:vcsrepo).provide(:git, :parent => Puppet::Provider::Vcsrepo) 
     return current
   end
 
-  def update_owner_and_excludes
-    if @resource.value(:owner) or @resource.value(:group)
-      set_ownership
-    end
-    if @resource.value(:excludes)
-      set_excludes
-    end
-  end
 
   def git_with_identity(*args)
     if @resource.value(:identity)

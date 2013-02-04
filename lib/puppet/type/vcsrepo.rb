@@ -56,6 +56,7 @@ Puppet::Type.newtype(:vcsrepo) do
     def insync?(is)
       @should ||= []
 
+
       case should
       when :present
         return true unless [:absent, :purged, :held].include?(is)
@@ -76,8 +77,6 @@ Puppet::Type.newtype(:vcsrepo) do
     end
 
     newvalue :bare, :required_features => [:bare_repositories] do
-      binding.pry
-
       if provider.exists?
         provider.update_owner_and_excludes
       else
