@@ -1,21 +1,23 @@
 
 require 'spec_helper'
 
+$restricted_user = 'paulche'
+
 describe Puppet::Type.type(:vcsrepo), :resource => { :name => '/tmp/vcheck' } do
 
   let :resource do
-    resource_hash = {}
+    traverse_through_metadata_for :resource
+  end
 
-    current_klass = self.class
+  let :prestine_resource do
+    traverse_through_metadata_for :prestine_resource
+  end
 
-    until current_klass == RSpec::Core::ExampleGroup
-      metadata = current_klass.metadata
-      resource_hash.merge!(metadata[:resource]) if metadata[:resource].kind_of?(Hash)
-      current_klass = current_klass.superclass
-    end
-
-    resource_hash[:catalog] = catalog
-    resource_hash
+  before(:all) do
+    #
+    ## Root permition is required for vast majority of tests
+    #
+    raise Exception, "Root permition is required" unless Puppet::Util::SUIDManager.root?
   end
 
   let(:vcsrepo)   { described_class.new(resource) }
@@ -27,21 +29,76 @@ describe Puppet::Type.type(:vcsrepo), :resource => { :name => '/tmp/vcheck' } do
     Puppet::Util::Storage.stubs(:store)
   end
 
+  after(:each) do
+   # Teardown
+   FileUtils.rm_rf resource[:name]
+  end
+
   context "git provider", :resource => {:provider => :git} do
-    context "#edit" do
 
-      resource_with :ensure => :bare, :group => 'new-group' do
-        it 'should recursively update group ownership' do
-          expects_update_group('/tmp/vcheck', 'new-group')
+    resource_with :ensure => :bare do
+      with_update_resource :group => { :from => 'wheel', :to => 'nobody' } do
+        context "without permition" do
+          it 'should failed with log message' do
+            Puppet::Util::SUIDManager.asuser(Puppet::Util.uid($restricted_user),Puppet::Util.gid($restricted_user)) do
+              catalog.add_resource(vcsrepo)
 
-          provider.stubs(:exists?).returns(true)
+              trans = catalog.apply
 
-          catalog.add_resource(vcsrepo)
+              status = trans.report.resource_statuses["#{vcsrepo.type.to_s.capitalize}[#{vcsrepo.title}]"]
 
-          catalog.apply.report
+              status.should be_failed
+            end
+          end
         end
-      end
+
+        context "with permition" do
+          it 'should recursively update group ownership' do
+
+            catalog.add_resource(vcsrepo)
+
+            catalog.apply
+
+            Dir[File.join(resource[:name],"/**/*")].each do |el|
+              File.stat(el).gid.should eq(Puppet::Util.gid(resource[:group]))
+            end
+          end
+        end
+
+        end
+
+        with_update_resource :owner => { :from => 'root', :to => 'paulche' } do
+
+          context "without permition" do
+            it 'should failed with log message' do
+              Puppet::Util::SUIDManager.asuser(Puppet::Util.uid($restricted_user),Puppet::Util.gid($restricted_user)) do
+                  catalog.add_resource(vcsrepo)
+
+                  trans = catalog.apply
+
+                  status = trans.report.resource_statuses["#{vcsrepo.type.to_s.capitalize}[#{vcsrepo.title}]"]
+
+                  status.should be_failed
+              end
+            end
+          end
+
+          context "with permition" do
+            it 'should recursively update group ownership' do
+
+              catalog.add_resource(vcsrepo)
+
+              catalog.apply
+
+              Dir[File.join(resource[:name],"/**/*")].each do |el|
+                File.stat(el).uid.should eq(Puppet::Util.uid(resource[:owner]))
+              end
+
+            end
+          end
+        end
     end
   end
 end
+
 

@@ -13,6 +13,20 @@ module ProviderMacros
         subject
       end
 
+      def traverse_through_metadata_for(key)
+        resource_hash = {}
+
+        current_klass = self.class
+
+        until current_klass == RSpec::Core::ExampleGroup
+          metadata = current_klass.metadata
+          resource_hash.merge!(metadata[key]) if metadata[key].kind_of?(Hash)
+          current_klass = current_klass.superclass
+        end
+
+        resource_hash
+      end
+
     end
   end
 
@@ -52,6 +66,35 @@ module ProviderMacros
       text = params.map { |k, v| "#{k} => #{v.inspect}" }.join(' and with ')
       context("and with #{text}", {:resource => params}, &block)
     end
+  end
+
+  def with_update_resource(what, &block)
+
+    metadata = what.reduce(:message => [], :resource => {}, :prestine => {}) do |acc,el|
+      acc[:message]             << "property #{el.first.inspect} from #{el.last[:from].inspect} to #{el.last[:to].inspect}"
+      acc[:resource][el.first]  = el.last[:to]
+      acc[:prestine][el.first]  = el.last[:from]
+      acc
+    end
+
+    prestine_block = lambda do |arg|
+
+      before(:each) do
+        c = Puppet::Resource::Catalog.new
+        r = described_class.new(resource.merge(prestine_resource))
+        c.add_resource(r)
+        c.apply
+      end
+
+      context(&block)
+    end
+
+    context(  "with update #{metadata[:message].join(' and ')}",
+              {
+                :resource           => metadata[:resource],
+                :prestine_resource  => metadata[:prestine]
+              },&prestine_block)
+
   end
 
   def actual_group(group)

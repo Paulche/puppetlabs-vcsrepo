@@ -1,5 +1,4 @@
 require 'pathname'
-require 'pry'
 
 Puppet::Type.newtype(:vcsrepo) do
   desc "A local version control repository"
@@ -55,7 +54,6 @@ Puppet::Type.newtype(:vcsrepo) do
 
     def insync?(is)
       @should ||= []
-
 
       case should
       when :present
@@ -147,12 +145,59 @@ Puppet::Type.newtype(:vcsrepo) do
     newvalue(/^\S+$/)
   end
 
-  newparam :owner do
+  newproperty :owner do
     desc "The user/uid that owns the repository files"
+
+    def retrieve
+      begin
+        stat = File.stat(@resource[:name])
+
+        Integer(stat.uid) rescue Puppet::Util.uid(stat.uid) || false
+
+      rescue
+        false
+      end
+    end
+
+    def insync?(is)
+      should_uid = Integer(should) rescue Puppet::Util.uid(should) || false
+
+      is == should_uid
+    end
+
+    def sync
+      FileUtils.chown_R(@resource[:owner],nil,@resource[:name])
+    rescue Errno::EPERM
+      raise Puppet::Error, "Not enough permition to change ownership of #{@resource[:name]}"
+    end
+
   end
 
-  newparam :group do
+  newproperty :group do
     desc "The group/gid that owns the repository files"
+
+    def retrieve
+      begin
+        stat = File.stat(@resource[:name])
+
+        Integer(stat.gid) rescue Puppet::Util.gid(stat.gid) || false
+
+      rescue
+        false
+      end
+    end
+
+    def insync?(is)
+      should_gid = Integer(should) rescue Puppet::Util.gid(should) || false
+
+      is == should_gid
+    end
+
+    def sync
+      FileUtils.chown_R(nil,@resource[:group],@resource[:name])
+    rescue Errno::EPERM
+      raise Puppet::Error, "Not enough permition to change ownership of #{@resource[:name]}"
+    end
   end
 
   newparam :user do
